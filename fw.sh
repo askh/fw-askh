@@ -8,7 +8,7 @@ then
 fi
 if [[ ! -r $config ]]
 then
-    echo "Fatal error. Config not found" 1>&2
+    echo "Fatal error. Config not found!" 1>&2
     exit 1
 fi
 . $config 
