@@ -1,6 +1,17 @@
 #!/bin/bash
 
-. ./fw.cfg
+default_config=/etc/fw-askh/fw.cfg
+config=$1
+if [[ ! -r $config ]]
+then
+    config=$default_config
+fi
+if [[ ! -r $config ]]
+then
+    echo "Fatal error. Config not found" 1>&2
+    exit 1
+fi
+. $config 
 
 function iface_ip()
 {

@@ -1,10 +1,13 @@
 # Настройки
 
+# Пути к используемым программам
 IPTABLES=/sbin/iptables
 IPSET=/usr/sbin/ipset
 
-PORTMAX=45000 # Максимальный номер порта, используемый в ipset
+# Максимальный номер порта, используемый в ipset
+PORTMAX=45000
 
+# Некоторые порты, используемые в приложениях
 TORRENT_PORTS="6881:6889 12141:12149"
 JABBER_PORTS="5222:5223 5269"
 VNC_PORTS=5500
@@ -15,17 +18,25 @@ OPENVPN_PORTS="1194"
 SIP_SERVER_PORTS="5060"
 SIP_CLIENT_PORTS="5160"
 
+# Порты, которые должны быть открыты на данном компьютере (не в виртуальной машине),
+# для протокола TCP
 # INET_OPEN_PORTS_TCP="ssh smtp www svn domain $TORRENT_PORTS $JABBER_PORTS $VNC_PORTS $SIP_SERVER_PORTS $SIP_CLIENT_PORTS"
 INET_OPEN_PORTS_TCP=
 
+# Порты, которые должны быть открыты на данном компьютере (не в виртуальной машине),
+# для протокола UDP
 # INET_OPEN_PORTS_UDP="67 68 domain $TORRENT_PORTS $WARSOW_PORTS $URTR_PORTS $OPENVPN_PORTS $SIP_SERVER_PORTS $SIP_CLIENT_PORTS"
 INET_OPEN_PORTS_UDP=
 
+# Некоторый сервер в контейнере OpenVZ
 # VZ_SAMPLESERVER=192.168.10.10
 
+# Интерфейс для контейнеров OpenVZ
 # VZ_IFACE=venet0
 VZ_IFACE=
 
+# Массив, описывающий серверы OpenVZ, элементы - строки вида "протокол IP-адрес порт ..."
+# (портов может быть более одного)
 # VZ_SERVERS=("tcp $VZ_SAMPLESERVER smtp" "udp $VZ_SAMPLESERVER $COUNTER_STRIKE_PORTS $URBAN_TERROR_PORTS")
 VZ_SERVERS=()
 
