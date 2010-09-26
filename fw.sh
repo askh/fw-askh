@@ -108,13 +108,13 @@ $IPTABLES -t mangle -X
 
 ipset_create inet_open_ports_tcp portmap --from 1 --to $PORTMAX
 ipset_create inet_open_ports_udp portmap --from 1 --to $PORTMAX
-for ports in $INET_OPEN_PORTS_TCP
+for((port_i=0; $port_i<${#INET_OPEN_PORTS_TCP[*]}; ++port_i))
 do
-    ipset_add_ports inet_open_ports_tcp $ports
+    ipset_add_ports inet_open_ports_tcp ${INET_OPEN_PORTS_TCP[$port_i]}
 done
-for ports in $INET_OPEN_PORTS_UDP
+for((port_i=0; $port_i<${#INET_OPEN_PORTS_UDP[*]}; ++port_i))
 do
-    ipset_add_ports inet_open_ports_udp $ports
+    ipset_add_ports inet_open_ports_udp ${INET_OPEN_PORTS_UDP[$port_i]}
 done
 
 ipset_create iface_nets nethash
@@ -214,17 +214,20 @@ do
 done
 
 # OpenVZ для таблицы filter
-for((i=0; $i<${#VZ_SERVERS[*]}; ++i)) 
-do
-    data=(${VZ_SERVERS[$i]})
-    proto=${data[0]}
-    ip=${data[1]}
-    for((porti=2; $porti<${#data[*]}; ++porti))
+if [[ -n $VZ_IFACE ]]
+then
+    for((vz_i=0; $vz_i<${#VZ_SERVERS[*]}; ++vz_i)) 
     do
-        port=${data[$porti]}
-        $IPTABLES -A FORWARD -o $VZ_IFACE -p $proto -d $ip --dport $port -j ACCEPT
+	data=(${VZ_SERVERS[$vz_i]})
+	proto=${data[0]}
+	ip=${data[1]}
+	for((port_i=2; $port_i<${#data[*]}; ++port_i))
+	do
+	    port=${data[$port_i]}
+	    $IPTABLES -A FORWARD -o $VZ_IFACE -p $proto -d $ip --dport $port -j ACCEPT
+	done
     done
-done
+fi
 
 # Записываем (частично) в лог пакеты, которые не прошли правила.
 $IPTABLES -A FORWARD -m limit --limit 5/minute -j LOG --log-prefix 'Bad forward packet: ' --log-ip-options # --log-level debug
@@ -245,27 +248,30 @@ for((i=0; i<${#INET_IFACES[*]}; ++i)) {
 }
 
 # OpenVZ для таблицы nat
-for((iface_i=0; $iface_i<${#IFACE_IP[*]}; ++iface_i))
-do
-    ifaceip=(${IFACE_IP[$iface_i]})
-    for((ip_i=1; $ip_i<${#ifaceip[*]}; ++ip_i))
+if [[ -n $VZ_IFACE ]]
+then
+    for((iface_i=0; $iface_i<${#IFACE_IP[*]}; ++iface_i))
     do
-        ip=${ifaceip[$ip_i]}
-
-	for((vz_i=0; $vz_i<${#VZ_SERVERS[*]}; ++vz_i))
+	ifaceip=(${IFACE_IP[$iface_i]})
+	for((ip_i=1; $ip_i<${#ifaceip[*]}; ++ip_i))
 	do
-	    vz_data=(${VZ_SERVERS[$vz_i]})
-	    proto=${vz_data[0]}
-	    to_dest=${vz_data[1]}
+	    ip=${ifaceip[$ip_i]}
 
-	    for((port_i=2; $port_i<${#vz_data[*]}; ++port_i))
+	    for((vz_i=0; $vz_i<${#VZ_SERVERS[*]}; ++vz_i))
 	    do
-		port=${vz_data[$port_i]}
-		nat_rules_for_vz_service $proto $ip $port $to_dest
-            done
-        done
+		vz_data=(${VZ_SERVERS[$vz_i]})
+		proto=${vz_data[0]}
+		to_dest=${vz_data[1]}
+
+		for((port_i=2; $port_i<${#vz_data[*]}; ++port_i))
+		do
+		    port=${vz_data[$port_i]}
+		    nat_rules_for_vz_service $proto $ip $port $to_dest
+		done
+	    done
+	done
     done
-done
+fi
 
 # Устанавливаем основные правила по умолчанию.
 $IPTABLES -P INPUT DROP

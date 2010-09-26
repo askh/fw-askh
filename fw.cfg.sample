@@ -20,16 +20,13 @@ SIP_CLIENT_PORTS="5160"
 
 # Порты, которые должны быть открыты на данном компьютере (не в виртуальной машине),
 # для протокола TCP
-# INET_OPEN_PORTS_TCP="ssh smtp www svn domain $TORRENT_PORTS $JABBER_PORTS $VNC_PORTS $SIP_SERVER_PORTS $SIP_CLIENT_PORTS"
-INET_OPEN_PORTS_TCP=
+# INET_OPEN_PORTS_TCP=(ssh smtp www svn domain $TORRENT_PORTS $JABBER_PORTS $VNC_PORTS $SIP_SERVER_PORTS $SIP_CLIENT_PORTS)
+INET_OPEN_PORTS_TCP=()
 
 # Порты, которые должны быть открыты на данном компьютере (не в виртуальной машине),
 # для протокола UDP
-# INET_OPEN_PORTS_UDP="67 68 domain $TORRENT_PORTS $WARSOW_PORTS $URTR_PORTS $OPENVPN_PORTS $SIP_SERVER_PORTS $SIP_CLIENT_PORTS"
-INET_OPEN_PORTS_UDP=
-
-# Некоторый сервер в контейнере OpenVZ
-# VZ_SAMPLESERVER=192.168.10.10
+# INET_OPEN_PORTS_UDP=(67 68 domain $TORRENT_PORTS $WARSOW_PORTS $URTR_PORTS $OPENVPN_PORTS $SIP_SERVER_PORTS $SIP_CLIENT_PORTS)
+INET_OPEN_PORTS_UDP=()
 
 # Интерфейс для контейнеров OpenVZ
 # VZ_IFACE=venet0
@@ -37,15 +34,15 @@ VZ_IFACE=
 
 # Массив, описывающий серверы OpenVZ, элементы - строки вида "протокол IP-адрес порт ..."
 # (портов может быть более одного)
-# VZ_SERVERS=("tcp $VZ_SAMPLESERVER smtp" "udp $VZ_SAMPLESERVER $COUNTER_STRIKE_PORTS $URBAN_TERROR_PORTS")
+# VZ_SERVERS=("tcp 192.168.3.5 smtp" "udp 192.168.3.6 $COUNTER_STRIKE_PORTS $URBAN_TERROR_PORTS")
 VZ_SERVERS=()
 
 # Интерфейсы Интернета
-# INET_IFACES=("eth0" "ppp0")
+# INET_IFACES=(eth0 ppp0)
 INET_IFACES=()
 
 # Интерфейсы локальной сети
-# LAN_IFACES=("eth1" "tun0" "venet0")
+# LAN_IFACES=(eth1 tun0 venet0)
 LAN_IFACES=()
 
 # Для интерфейсов и для сетей, находящихся в этом списке, пропускаются только пакеты, адреса отправителя которых находятся в сети, соответствующей
