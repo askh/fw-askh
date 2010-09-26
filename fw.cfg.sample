@@ -1,0 +1,52 @@
+# Настройки
+
+IPTABLES=/sbin/iptables
+IPSET=/usr/sbin/ipset
+
+PORTMAX=45000 # Максимальный номер порта, используемый в ipset
+
+TORRENT_PORTS="6881:6889 12141:12149"
+JABBER_PORTS="5222:5223 5269"
+VNC_PORTS=5500
+WARSOW_PORTS="27950 44400"
+COUNTER_STRIKE_PORTS="27015"
+URBAN_TERROR_PORTS="27960"
+OPENVPN_PORTS="1194"
+SIP_SERVER_PORTS="5060"
+SIP_CLIENT_PORTS="5160"
+
+# INET_OPEN_PORTS_TCP="ssh smtp www svn domain $TORRENT_PORTS $JABBER_PORTS $VNC_PORTS $SIP_SERVER_PORTS $SIP_CLIENT_PORTS"
+INET_OPEN_PORTS_TCP=
+
+# INET_OPEN_PORTS_UDP="67 68 domain $TORRENT_PORTS $WARSOW_PORTS $URTR_PORTS $OPENVPN_PORTS $SIP_SERVER_PORTS $SIP_CLIENT_PORTS"
+INET_OPEN_PORTS_UDP=
+
+# VZ_SAMPLESERVER=192.168.10.10
+
+# VZ_IFACE=venet0
+VZ_IFACE=
+
+# VZ_SERVERS=("tcp $VZ_SAMPLESERVER smtp" "udp $VZ_SAMPLESERVER $COUNTER_STRIKE_PORTS $URBAN_TERROR_PORTS")
+VZ_SERVERS=()
+
+# Интерфейсы Интернета
+# INET_IFACES=("eth0" "ppp0")
+INET_IFACES=()
+
+# Интерфейсы локальной сети
+# LAN_IFACES=("eth1" "tun0" "venet0")
+LAN_IFACES=()
+
+# Для интерфейсов и для сетей, находящихся в этом списке, пропускаются только пакеты, адреса отправителя которых находятся в сети, соответствующей
+# интерфейсу, другие пакеты из перечисленных сетей или пришедшие на перечисленные интерфейсы, отбрасываются.
+# IFACE_NETS=("lo 127.0.0.0/8" "eth1 192.168.1.0/24" "tun0 192.168.2.0/24" "venet0 192.168.3.0/24 192.168.4.0/24")
+IFACE_NETS=("lo 127.0.0.0/8")
+
+# Статические адреса для интерфейсов, предполагается, что сервисы могут быть
+# только на интерфейсах со статическими адресами.
+# Не обязательно это внешние интерфейсы!
+# Первый IP-адрес - "главный" (например он подставляется при SNAT), но вообще адресов может быть несколько.
+# IFACE_IP=("ppp0 1.2.3.4" "eth0 4.3.2.1")
+IFACE_IP=()
+
+
