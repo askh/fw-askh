@@ -89,7 +89,7 @@ function ipset_add_ports()
 
 }
 
-function nat_rules_for_vz_service()
+function nat_rules_for_vm_service()
 {
     local proto=$1
     local ip=$2
@@ -129,6 +129,7 @@ ipset_create iface_nets nethash
 
 # Правило для проверки TCP-пакетов на корректность
 $IPTABLES -N tcp_check
+
 # Препятствуем попытке отправить пакет якобы от нашего имени.
 $IPTABLES -A tcp_check -p tcp --tcp-flags SYN,ACK SYN,ACK -m state --state NEW -m limit --limit 5/minute -j LOG --log-prefix 'Attack? New SYN,ACK: ' --log-ip-options
 $IPTABLES -A tcp_check -p tcp --tcp-flags SYN,ACK SYN,ACK -m state --state NEW -j REJECT --reject-with tcp-reset
@@ -153,7 +154,7 @@ done
 
 for((i=0; $i<${#LAN_IFACES[*]}; ++i))
 do
-	$IPTABLES -A in_tcp_packets -i ${LAN_IFACES[$i]} -p tcp -j ACCEPT
+    $IPTABLES -A in_tcp_packets -i ${LAN_IFACES[$i]} -p tcp -j ACCEPT
 done
 
 # Анализ пакетов udp
@@ -167,7 +168,7 @@ done
 
 for((i=0; $i<${#LAN_IFACES[*]}; ++i))
 do
-	$IPTABLES -A in_udp_packets -i ${LAN_IFACES[$i]} -p udp -j ACCEPT
+    $IPTABLES -A in_udp_packets -i ${LAN_IFACES[$i]} -p udp -j ACCEPT
 done
 
 # Правила для проверки соответствия интерфейсов и адресов, которые заданы в массиве IFACE_NETS.
@@ -177,15 +178,15 @@ $IPTABLES -A known_nets_wrong -m limit --limit 5/minute -j LOG --log-prefix 'Wro
 $IPTABLES -A known_nets_wrong -j DROP
 for((i=${#IFACE_NETS[*]}-1; $i>=0; --i))
 do
-	net_data=(${IFACE_NETS[$i]})
-	iface=${net_data[0]}
-	for((j=${#net_data[*]}-1; $j>=1; --j))
-	do
-		net=${net_data[$j]}
-		$IPSET -A iface_nets $net
-		$IPTABLES -I known_nets 1 -s $net -i $iface -j RETURN
-	done
-	$IPTABLES -A known_nets -i $iface -j known_nets_wrong
+    net_data=(${IFACE_NETS[$i]})
+    iface=${net_data[0]}
+    for((j=${#net_data[*]}-1; $j>=1; --j))
+    do
+        net=${net_data[$j]}
+        $IPSET -A iface_nets $net
+        $IPTABLES -I known_nets 1 -s $net -i $iface -j RETURN
+    done
+    $IPTABLES -A known_nets -i $iface -j known_nets_wrong
 done
 $IPTABLES -A known_nets -m set --set iface_nets src -j known_nets_wrong
 
@@ -233,10 +234,10 @@ fi
 # Разрешаем форвард для всех адресов локальной сети (если задано в конфигурационном файле)
 if [[ "$LAN_IFACES_FORWARD" ]]
 then
-	for((i=0; $i<${#LAN_IFACES[*]}; ++i))
-	do
-		$IPTABLES -A FORWARD -i ${LAN_IFACES[$i]} -j ACCEPT
-	done
+    for((i=0; $i<${#LAN_IFACES[*]}; ++i))
+    do
+        $IPTABLES -A FORWARD -i ${LAN_IFACES[$i]} -j ACCEPT
+    done
 fi
 
 # OpenVZ для таблицы filter
@@ -244,14 +245,14 @@ if [[ -n $VZ_IFACE ]]
 then
     for((vz_i=0; $vz_i<${#VZ_SERVERS[*]}; ++vz_i)) 
     do
-		data=(${VZ_SERVERS[$vz_i]})
-		proto=${data[0]}
-		ip=${data[1]}
-		for((port_i=2; $port_i<${#data[*]}; ++port_i))
-		do
-			port=${data[$port_i]}
-			$IPTABLES -A FORWARD -o $VZ_IFACE -p $proto -d $ip --dport $port -j ACCEPT
-		done
+        data=(${VZ_SERVERS[$vz_i]})
+        proto=${data[0]}
+        ip=${data[1]}
+        for((port_i=2; $port_i<${#data[*]}; ++port_i))
+        do
+            port=${data[$port_i]}
+            $IPTABLES -A FORWARD -o $VZ_IFACE -p $proto -d $ip --dport $port -j ACCEPT
+        done
     done
 fi
 
@@ -268,7 +269,7 @@ $IPTABLES -A FORWARD -j DROP
 
 if [[ -r "$OUTPUT_DENY_RULES_CONFIG" ]]
 then
-	source $OUTPUT_DENY_RULES_CONFIG
+    source $OUTPUT_DENY_RULES_CONFIG
 fi
 
 # Роутер
@@ -293,25 +294,25 @@ then
         do
             ip=${ifaceip[$ip_i]}
 
-			for((vz_i=0; $vz_i<${#VZ_SERVERS[*]}; ++vz_i))
-			do
-				vz_data=(${VZ_SERVERS[$vz_i]})
-				proto=${vz_data[0]}
-				to_dest=${vz_data[1]}
+            for((vz_i=0; $vz_i<${#VZ_SERVERS[*]}; ++vz_i))
+            do
+                vz_data=(${VZ_SERVERS[$vz_i]})
+                proto=${vz_data[0]}
+                to_dest=${vz_data[1]}
 
-				for((port_i=2; $port_i<${#vz_data[*]}; ++port_i))
-				do
-					port=${vz_data[$port_i]}
-					nat_rules_for_vz_service $proto $ip $port $to_dest
-				done
-			done
-		done
+                for((port_i=2; $port_i<${#vz_data[*]}; ++port_i))
+                do
+                    port=${vz_data[$port_i]}
+                    nat_rules_for_vm_service $proto $ip $port $to_dest
+                done
+            done
+        done
     done
 fi
 
 if [[ -r "$OUTPUT_ALLOW_RULES_CONFIG" ]]
 then
-	source $OUTPUT_ALLOW_RULES_CONFIG
+    source $OUTPUT_ALLOW_RULES_CONFIG
 fi
 
 if [[ ! "$OUTPUT_ALLOW" ]]
