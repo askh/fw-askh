@@ -1,17 +1,25 @@
 #!/bin/bash
 
-default_config=/etc/fw-askh/fw.cfg
+CONFIG_DIR=/etc/fw-askh
+DEFAULT_CONFIG=$CONFIG_DIR/fw.cfg
+INPUT_ALLOW_RULES_CONFIG=$CONFIG_DIR/input_allow.cfg
+INPUT_DENY_RULES_CONFIG=$CONFIG_DIR/input_deny.cfg
+FORWARD_ALLOW_RULES_CONFIG=$CONFIG_DIR/forward_allow.cfg
+FORWARD_DENY_RULES_CONFIG=$CONFIG_DIR/forward_deny.cfg
+OUTPUT_ALLOW_RULES_CONFIG=$CONFIG_DIR/output_allow.cfg
+OUTPUT_DENY_RULES_CONFIG=$CONFIG_DIR/output_deny.cfg
+
 config=$1
 if [[ ! -r $config ]]
 then
-    config=$default_config
+    config=$DEFAULT_CONFIG
 fi
 if [[ ! -r $config ]]
 then
     echo "Fatal error. Config not found!" 1>&2
     exit 1
 fi
-. $config 
+source $config 
 
 function iface_ip()
 {
@@ -45,7 +53,7 @@ function iface_ips()
         then
             echo -n ${data[1]}
             for((ip_i = 2; $ip_i < ${#data[*]}; ++i)) do
-                echo -n " ${data[$i]}"
+            echo -n " ${data[$i]}"
             done
             return
         fi
@@ -71,13 +79,13 @@ function ipset_add_ports()
     # диапазона делаем без цикла
     if [[ $begin == $end ]]
     then
-         $IPSET -A $name $begin
+        $IPSET -A $name $begin
     else
-         for((i=$begin;$i<=$end;++i))
-         do
-             $IPSET -A $name $i
-         done
-     fi
+        for((i=$begin;$i<=$end;++i))
+        do
+            $IPSET -A $name $i
+        done
+    fi
 
 }
 
@@ -145,7 +153,7 @@ done
 
 for((i=0; $i<${#LAN_IFACES[*]}; ++i))
 do
-  $IPTABLES -A in_tcp_packets -i ${LAN_IFACES[$i]} -p tcp -j ACCEPT
+	$IPTABLES -A in_tcp_packets -i ${LAN_IFACES[$i]} -p tcp -j ACCEPT
 done
 
 # Анализ пакетов udp
@@ -159,7 +167,7 @@ done
 
 for((i=0; $i<${#LAN_IFACES[*]}; ++i))
 do
-  $IPTABLES -A in_udp_packets -i ${LAN_IFACES[$i]} -p udp -j ACCEPT
+	$IPTABLES -A in_udp_packets -i ${LAN_IFACES[$i]} -p udp -j ACCEPT
 done
 
 # Правила для проверки соответствия интерфейсов и адресов, которые заданы в массиве IFACE_NETS.
@@ -169,15 +177,15 @@ $IPTABLES -A known_nets_wrong -m limit --limit 5/minute -j LOG --log-prefix 'Wro
 $IPTABLES -A known_nets_wrong -j DROP
 for((i=${#IFACE_NETS[*]}-1; $i>=0; --i))
 do
-  net_data=(${IFACE_NETS[$i]})
-  iface=${net_data[0]}
-  for((j=${#net_data[*]}-1; $j>=1; --j))
-  do
-    net=${net_data[$j]}
-    $IPSET -A iface_nets $net
-    $IPTABLES -I known_nets 1 -s $net -i $iface -j RETURN
-  done
-  $IPTABLES -A known_nets -i $iface -j known_nets_wrong
+	net_data=(${IFACE_NETS[$i]})
+	iface=${net_data[0]}
+	for((j=${#net_data[*]}-1; $j>=1; --j))
+	do
+		net=${net_data[$j]}
+		$IPSET -A iface_nets $net
+		$IPTABLES -I known_nets 1 -s $net -i $iface -j RETURN
+	done
+	$IPTABLES -A known_nets -i $iface -j known_nets_wrong
 done
 $IPTABLES -A known_nets -m set --set iface_nets src -j known_nets_wrong
 
@@ -192,9 +200,19 @@ $IPTABLES -A INPUT -i lo -j ACCEPT
 # Проверяем, соответствует ли адрес интерфейсу
 $IPTABLES -A INPUT -j known_nets
 
+if [[ -r "$INPUT_DENY_RULES_CONFIG" ]]
+then
+    source $INPUT_DENY_RULES_CONFIG
+fi
+
 $IPTABLES -A INPUT -p tcp --jump in_tcp_packets
 $IPTABLES -A INPUT -p udp --jump in_udp_packets
 $IPTABLES -A INPUT -p icmp --jump in_icmp_packets
+
+if [[ -r "$INPUT_ALLOW_RULES_CONFIG" ]]
+then
+    source $INPUT_ALLOW_RULES_CONFIG
+fi
 
 # Записываем (частично) в лог пакеты, которые не прошли правила.
 $IPTABLES -A INPUT -m limit --limit 5/minute -j LOG --log-prefix 'Bad input packet: ' --log-ip-options # --log-level debug
@@ -207,26 +225,39 @@ $IPTABLES -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
 # Проверяем, соответствует ли адрес интерфейсу
 $IPTABLES -A FORWARD -j known_nets
 
-# Разрешаем форвард для всех адресов локальной сети (может потребуется поменять)
-for((i=0; $i<${#LAN_IFACES[*]}; ++i))
-do
-    $IPTABLES -A FORWARD -i ${LAN_IFACES[$i]} -j ACCEPT
-done
+if [[ -r "$FORWARD_DENY_RULES_CONFIG" ]]
+then
+    source $FORWARD_DENY_RULES_CONFIG
+fi
+
+# Разрешаем форвард для всех адресов локальной сети (если задано в конфигурационном файле)
+if [[ "$LAN_IFACES_FORWARD" ]]
+then
+	for((i=0; $i<${#LAN_IFACES[*]}; ++i))
+	do
+		$IPTABLES -A FORWARD -i ${LAN_IFACES[$i]} -j ACCEPT
+	done
+fi
 
 # OpenVZ для таблицы filter
 if [[ -n $VZ_IFACE ]]
 then
     for((vz_i=0; $vz_i<${#VZ_SERVERS[*]}; ++vz_i)) 
     do
-	data=(${VZ_SERVERS[$vz_i]})
-	proto=${data[0]}
-	ip=${data[1]}
-	for((port_i=2; $port_i<${#data[*]}; ++port_i))
-	do
-	    port=${data[$port_i]}
-	    $IPTABLES -A FORWARD -o $VZ_IFACE -p $proto -d $ip --dport $port -j ACCEPT
-	done
+		data=(${VZ_SERVERS[$vz_i]})
+		proto=${data[0]}
+		ip=${data[1]}
+		for((port_i=2; $port_i<${#data[*]}; ++port_i))
+		do
+			port=${data[$port_i]}
+			$IPTABLES -A FORWARD -o $VZ_IFACE -p $proto -d $ip --dport $port -j ACCEPT
+		done
     done
+fi
+
+if [[ -r "$FORWARD_ALLOW_RULES_CONFIG" ]]
+then
+    source $FORWARD_ALLOW_RULES_CONFIG
 fi
 
 # Записываем (частично) в лог пакеты, которые не прошли правила.
@@ -234,6 +265,11 @@ $IPTABLES -A FORWARD -m limit --limit 5/minute -j LOG --log-prefix 'Bad forward 
 $IPTABLES -A FORWARD -j DROP
 
 # Цепочка OUTPUT
+
+if [[ -r "$OUTPUT_DENY_RULES_CONFIG" ]]
+then
+	source $OUTPUT_DENY_RULES_CONFIG
+fi
 
 # Роутер
 for((i=0; i<${#INET_IFACES[*]}; ++i)) {
@@ -252,25 +288,37 @@ if [[ -n $VZ_IFACE ]]
 then
     for((iface_i=0; $iface_i<${#IFACE_IP[*]}; ++iface_i))
     do
-	ifaceip=(${IFACE_IP[$iface_i]})
-	for((ip_i=1; $ip_i<${#ifaceip[*]}; ++ip_i))
-	do
-	    ip=${ifaceip[$ip_i]}
+        ifaceip=(${IFACE_IP[$iface_i]})
+        for((ip_i=1; $ip_i<${#ifaceip[*]}; ++ip_i))
+        do
+            ip=${ifaceip[$ip_i]}
 
-	    for((vz_i=0; $vz_i<${#VZ_SERVERS[*]}; ++vz_i))
-	    do
-		vz_data=(${VZ_SERVERS[$vz_i]})
-		proto=${vz_data[0]}
-		to_dest=${vz_data[1]}
+			for((vz_i=0; $vz_i<${#VZ_SERVERS[*]}; ++vz_i))
+			do
+				vz_data=(${VZ_SERVERS[$vz_i]})
+				proto=${vz_data[0]}
+				to_dest=${vz_data[1]}
 
-		for((port_i=2; $port_i<${#vz_data[*]}; ++port_i))
-		do
-		    port=${vz_data[$port_i]}
-		    nat_rules_for_vz_service $proto $ip $port $to_dest
+				for((port_i=2; $port_i<${#vz_data[*]}; ++port_i))
+				do
+					port=${vz_data[$port_i]}
+					nat_rules_for_vz_service $proto $ip $port $to_dest
+				done
+			done
 		done
-	    done
-	done
     done
+fi
+
+if [[ -r "$OUTPUT_ALLOW_RULES_CONFIG" ]]
+then
+	source $OUTPUT_ALLOW_RULES_CONFIG
+fi
+
+if [[ ! "$OUTPUT_ALLOW" ]]
+then
+    # Записываем (частично) в лог пакеты, которые не прошли правила.
+    $IPTABLES -A OUTPUT -m limit --limit 5/minute -j LOG --log-prefix 'Bad ouptut packet: ' --log-ip-options # --log-level debug
+    $IPTABLES -A OUTPUT -j DROP
 fi
 
 # Устанавливаем основные правила по умолчанию.
