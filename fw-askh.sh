@@ -1,13 +1,22 @@
 #!/bin/bash
 
+# Скрипт для настройки iptables
+# Copyright 2011 Alexander S. Kharitonov <askh@askh.ru>
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# Свежая версия скрипта находится здесь: https://github.com/askh/fw-askh
+
 CONFIG_DIR=/etc/fw-askh
 DEFAULT_CONFIG=$CONFIG_DIR/fw-askh.cfg
-INPUT_ALLOW_RULES_CONFIG=$CONFIG_DIR/input_allow.cfg
-INPUT_DENY_RULES_CONFIG=$CONFIG_DIR/input_deny.cfg
-FORWARD_ALLOW_RULES_CONFIG=$CONFIG_DIR/forward_allow.cfg
-FORWARD_DENY_RULES_CONFIG=$CONFIG_DIR/forward_deny.cfg
-OUTPUT_ALLOW_RULES_CONFIG=$CONFIG_DIR/output_allow.cfg
-OUTPUT_DENY_RULES_CONFIG=$CONFIG_DIR/output_deny.cfg
+INPUT_PRE_RULES_CONFIG=$CONFIG_DIR/input_pre.cfg
+INPUT_POST_RULES_CONFIG=$CONFIG_DIR/input_post.cfg
+FORWARD_PRE_RULES_CONFIG=$CONFIG_DIR/forward_pre.cfg
+FORWARD_POST_RULES_CONFIG=$CONFIG_DIR/forward_post.cfg
+OUTPUT_PRE_RULES_CONFIG=$CONFIG_DIR/output_pre.cfg
+OUTPUT_POST_RULES_CONFIG=$CONFIG_DIR/output_post.cfg
 
 config=$1
 if [[ ! -r $config ]]
@@ -93,7 +102,6 @@ function ipset_add_ports()
             $IPSET -A $name $i
         done
     fi
-
 }
 
 # Создаются правила для NAT для перенаправления пакетов сервисов, которые
@@ -147,12 +155,12 @@ $IPTABLES -A tcp_check -p tcp --tcp-flags SYN,ACK SYN,ACK -m state --state NEW -
 $IPTABLES -A tcp_check -p tcp ! --syn -m state --state NEW -m limit --limit 5/minute -j LOG --log-prefix "Attack? New tcp not syn: " --log-ip-options
 $IPTABLES -A tcp_check -p tcp ! --syn -m state --state NEW -j DROP
 
-# Анализ пакетов icmp
+# Анализ пакетов ICMP
 $IPTABLES -N in_icmp_packets
 $IPTABLES -A in_icmp_packets -p icmp -s 0/0 --icmp-type echo-request -j ACCEPT
 $IPTABLES -A in_icmp_packets -p icmp -s 0/0 --icmp-type time-exceeded -j ACCEPT
 
-# Анализ пакетов tcp
+# Анализ пакетов TCP
 $IPTABLES -N in_tcp_packets
 
 $IPTABLES -A in_tcp_packets -j tcp_check
@@ -168,7 +176,7 @@ do
     $IPTABLES -A in_tcp_packets -i ${LAN_IFACES[$i]} -p tcp -j ACCEPT
 done
 
-# Анализ пакетов udp
+# Анализ пакетов UDP
 $IPTABLES -N in_udp_packets
 $IPTABLES -F in_udp_packets
 
@@ -212,18 +220,18 @@ $IPTABLES -A INPUT -i lo -j ACCEPT
 # Проверяем, соответствует ли адрес интерфейсу
 $IPTABLES -A INPUT -j known_nets
 
-if [[ -r "$INPUT_DENY_RULES_CONFIG" ]]
+if [[ -r "$INPUT_PRE_RULES_CONFIG" ]]
 then
-    source $INPUT_DENY_RULES_CONFIG
+    source $INPUT_PRE_RULES_CONFIG
 fi
 
 $IPTABLES -A INPUT -p tcp --jump in_tcp_packets
 $IPTABLES -A INPUT -p udp --jump in_udp_packets
 $IPTABLES -A INPUT -p icmp --jump in_icmp_packets
 
-if [[ -r "$INPUT_ALLOW_RULES_CONFIG" ]]
+if [[ -r "$INPUT_POST_RULES_CONFIG" ]]
 then
-    source $INPUT_ALLOW_RULES_CONFIG
+    source $INPUT_POST_RULES_CONFIG
 fi
 
 # Записываем (частично) в лог пакеты, которые не прошли правила.
@@ -237,9 +245,9 @@ $IPTABLES -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
 # Проверяем, соответствует ли адрес интерфейсу
 $IPTABLES -A FORWARD -j known_nets
 
-if [[ -r "$FORWARD_DENY_RULES_CONFIG" ]]
+if [[ -r "$FORWARD_PRE_RULES_CONFIG" ]]
 then
-    source $FORWARD_DENY_RULES_CONFIG
+    source $FORWARD_PRE_RULES_CONFIG
 fi
 
 # Разрешаем форвард для всех адресов локальной сети (если задано в конфигурационном файле)
@@ -286,9 +294,9 @@ do
     done
 done
 
-if [[ -r "$FORWARD_ALLOW_RULES_CONFIG" ]]
+if [[ -r "$FORWARD_POST_RULES_CONFIG" ]]
 then
-    source $FORWARD_ALLOW_RULES_CONFIG
+    source $FORWARD_POST_RULES_CONFIG
 fi
 
 # Записываем (частично) в лог пакеты, которые не прошли правила.
@@ -297,14 +305,14 @@ $IPTABLES -A FORWARD -j DROP
 
 # Цепочка OUTPUT
 
-if [[ -r "$OUTPUT_DENY_RULES_CONFIG" ]]
+if [[ -r "$OUTPUT_PRE_RULES_CONFIG" ]]
 then
-    source $OUTPUT_DENY_RULES_CONFIG
+    source $OUTPUT_PRE_RULES_CONFIG
 fi
 
-if [[ -r "$OUTPUT_ALLOW_RULES_CONFIG" ]]
+if [[ -r "$OUTPUT_POST_RULES_CONFIG" ]]
 then
-    source $OUTPUT_ALLOW_RULES_CONFIG
+    source $OUTPUT_POST_RULES_CONFIG
 fi
 
 if [[ ! "$OUTPUT_ALLOW" ]]
