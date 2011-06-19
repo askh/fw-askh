@@ -1,7 +1,7 @@
 #!/bin/bash
 
 CONFIG_DIR=/etc/fw-askh
-DEFAULT_CONFIG=$CONFIG_DIR/fw.cfg
+DEFAULT_CONFIG=$CONFIG_DIR/fw-askh.cfg
 INPUT_ALLOW_RULES_CONFIG=$CONFIG_DIR/input_allow.cfg
 INPUT_DENY_RULES_CONFIG=$CONFIG_DIR/input_deny.cfg
 FORWARD_ALLOW_RULES_CONFIG=$CONFIG_DIR/forward_allow.cfg
@@ -21,6 +21,10 @@ then
 fi
 source $config 
 
+# Возвращает IP-адрес интерфейса.
+# Берётся первый IP-адрес из заданных для интерфейса в настройках
+# в переменной IFACE_IP. Если для интерфейса не задан IP-адрес,
+# то возвращается пустая строка.
 function iface_ip()
 {
     local iface=$1
@@ -39,6 +43,8 @@ function iface_ip()
     echo -n ''
 }
 
+# Аналог iface_ip, но возвращает строку со списком заданных IP-адресов
+# интерфейса
 function iface_ips()
 {
     local iface=$1
@@ -52,8 +58,9 @@ function iface_ips()
         if [[ $iface_i == $iface ]]
         then
             echo -n ${data[1]}
-            for((ip_i = 2; $ip_i < ${#data[*]}; ++i)) do
-            echo -n " ${data[$i]}"
+            for((ip_i = 2; $ip_i < ${#data[*]}; ++i))
+            do
+                echo -n " ${data[$i]}"
             done
             return
         fi
@@ -89,6 +96,10 @@ function ipset_add_ports()
 
 }
 
+# Создаются правила для NAT для перенаправления пакетов сервисов, которые
+# должны быть видны на IP-адресе компьютера, но реально работают в
+# виртуальных машинах. Для входящих пакетов - в PREROUTING, для исходящих
+# пакетов в OUTPUT.
 function nat_rules_for_vm_service()
 {
     local proto=$1
@@ -240,21 +251,40 @@ then
     done
 fi
 
-# OpenVZ для таблицы filter
-if [[ -n $VZ_IFACE ]]
-then
-    for((vz_i=0; $vz_i<${#VZ_SERVERS[*]}; ++vz_i)) 
+# Правила для виртуальных машин в таблице filter, цепочке FORWARD
+for((vm_i=0; $vm_i<${#VM_SERVERS[*]}; ++vm_i)) 
+do
+    data=(${VM_SERVERS[$vm_i]})
+    access=${data[0]}
+    iface=${data[1]}
+    proto=${data[2]}
+    ip=${data[3]}
+    for((port_i=4; $port_i<${#data[*]}; ++port_i))
     do
-        data=(${VZ_SERVERS[$vz_i]})
-        proto=${data[0]}
-        ip=${data[1]}
-        for((port_i=2; $port_i<${#data[*]}; ++port_i))
-        do
-            port=${data[$port_i]}
-            $IPTABLES -A FORWARD -o $VZ_IFACE -p $proto -d $ip --dport $port -j ACCEPT
-        done
+        port=${data[$port_i]}
+        if [[ "$access" == "all" ]]
+        then
+            $IPTABLES -A FORWARD -o $iface -p $proto -d $ip --dport $port -j ACCEPT
+        else
+            case "$access" in
+                (inet)
+                    access_ifaces=$INET_IFACES
+                    ;;
+                (lan)
+                    access_ifaces=$LAN_IFACES
+                    ;;
+                (*)
+                    access_ifaces=()
+                    ;;
+            esac
+            for((in_iface_i=0; in_iface_i < ${#access_ifaces[*]}; ++in_iface_i))
+            do
+                in_iface=${access_ifaces[$in_iface_i]}
+                $IPTABLES -A FORWARD -i $in_iface -o $iface -p $proto -d $ip --dport $port -j ACCEPT
+            done
+        fi
     done
-fi
+done
 
 if [[ -r "$FORWARD_ALLOW_RULES_CONFIG" ]]
 then
@@ -272,44 +302,6 @@ then
     source $OUTPUT_DENY_RULES_CONFIG
 fi
 
-# Роутер
-for((i=0; i<${#INET_IFACES[*]}; ++i)) {
-    iface=${INET_IFACES[$i]};
-    ip=$(iface_ip $iface);
-    if [[ $ip == '' ]]
-    then
-        $IPTABLES -t nat -A POSTROUTING -o $iface -j MASQUERADE
-    else
-        $IPTABLES -t nat -A POSTROUTING -o $iface -j SNAT --to-source $ip
-    fi
-}
-
-# OpenVZ для таблицы nat
-if [[ -n $VZ_IFACE ]]
-then
-    for((iface_i=0; $iface_i<${#IFACE_IP[*]}; ++iface_i))
-    do
-        ifaceip=(${IFACE_IP[$iface_i]})
-        for((ip_i=1; $ip_i<${#ifaceip[*]}; ++ip_i))
-        do
-            ip=${ifaceip[$ip_i]}
-
-            for((vz_i=0; $vz_i<${#VZ_SERVERS[*]}; ++vz_i))
-            do
-                vz_data=(${VZ_SERVERS[$vz_i]})
-                proto=${vz_data[0]}
-                to_dest=${vz_data[1]}
-
-                for((port_i=2; $port_i<${#vz_data[*]}; ++port_i))
-                do
-                    port=${vz_data[$port_i]}
-                    nat_rules_for_vm_service $proto $ip $port $to_dest
-                done
-            done
-        done
-    done
-fi
-
 if [[ -r "$OUTPUT_ALLOW_RULES_CONFIG" ]]
 then
     source $OUTPUT_ALLOW_RULES_CONFIG
@@ -321,6 +313,44 @@ then
     $IPTABLES -A OUTPUT -m limit --limit 5/minute -j LOG --log-prefix 'Bad ouptut packet: ' --log-ip-options # --log-level debug
     $IPTABLES -A OUTPUT -j DROP
 fi
+
+# Роутер
+for((i=0; i<${#INET_IFACES[*]}; ++i))
+do
+    iface=${INET_IFACES[$i]};
+    ip=$(iface_ip $iface);
+    if [[ $ip == '' ]]
+    then
+        $IPTABLES -t nat -A POSTROUTING -o $iface -j MASQUERADE
+    else
+        $IPTABLES -t nat -A POSTROUTING -o $iface -j SNAT --to-source $ip
+    fi
+done
+
+# Правила для виртуальных машин в таблице nat
+for((iface_i=0; $iface_i<${#IFACE_IP[*]}; ++iface_i))
+do
+    ifaceip=(${IFACE_IP[$iface_i]})
+    for((ip_i=1; $ip_i<${#ifaceip[*]}; ++ip_i))
+    do
+        ip=${ifaceip[$ip_i]}
+
+        for((vm_i=0; $vm_i<${#VM_SERVERS[*]}; ++vm_i))
+        do
+            vm_data=(${VM_SERVERS[$vm_i]})
+            access=${vm_data[0]};
+            iface=${vm_data[1]};
+            proto=${vm_data[2]}
+            to_dest=${vm_data[3]}
+
+            for((port_i=4; $port_i<${#vm_data[*]}; ++port_i))
+            do
+                port=${vm_data[$port_i]}
+                nat_rules_for_vm_service $proto $ip $port $to_dest
+            done
+        done
+    done
+done
 
 # Устанавливаем основные правила по умолчанию.
 $IPTABLES -P INPUT DROP

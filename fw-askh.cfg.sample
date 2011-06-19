@@ -28,14 +28,11 @@ INET_OPEN_PORTS_TCP=()
 # INET_OPEN_PORTS_UDP=(67 68 domain $TORRENT_PORTS $WARSOW_PORTS $URTR_PORTS $OPENVPN_PORTS $SIP_SERVER_PORTS $SIP_CLIENT_PORTS)
 INET_OPEN_PORTS_UDP=()
 
-# Интерфейс для контейнеров OpenVZ
-# VZ_IFACE=venet0
-VZ_IFACE=
-
-# Массив, описывающий серверы OpenVZ, элементы - строки вида "протокол IP-адрес порт ..."
-# (портов может быть более одного)
-# VZ_SERVERS=("tcp 192.168.3.5 smtp" "udp 192.168.3.6 $COUNTER_STRIKE_PORTS $URBAN_TERROR_PORTS")
-VZ_SERVERS=()
+# Массив, описывающий серверы в виртуальных машинах, элементы - строки вида "доступ интерфейс протокол IP-адрес порт ..."
+# (портов может быть более одного), при этом доступ - "lan", "inet", "all" - доступ из локальной сети,
+# из Интернтета или и оттуда, и оттуда.
+# VM_SERVERS=("lan venet0 tcp 192.168.3.5 smtp" "inet venet0 udp 192.168.3.6 $COUNTER_STRIKE_PORTS $URBAN_TERROR_PORTS")
+VM_SERVERS=()
 
 # Интерфейсы Интернета
 # INET_IFACES=(eth0 ppp0)
